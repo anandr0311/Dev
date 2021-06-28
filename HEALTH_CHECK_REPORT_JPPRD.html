@@ -221,3 +221,103 @@ Fatal NI connect error 12170.
 </table>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
 <BR><B><FONT FACE="VERDANA" SIZE=1 color="#FFFFFF">Created By: Rajeskumar S L                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
 new
+  
+  
+  set markup html on spool on
+spool transaction.html
+set time on
+set echo on
+show user;
+select * from v$version;
+select * from v$instance;
+select * from v$database;
+
+alter session set nls_date_format='dd-mon-yyyy hh24:mi:ss';
+select sysdate, systimestamp from dual;
+show parameter cluster;
+show parameter fast_start_parallel_rollback;
+show parameter undo;
+
+-- Check if there is ongoing recovery
+SELECT * FROM V$RECOVERY_PROGRESS;
+
+-- Identify Dead Transactions and their Sizes
+select ktuxeusn USN, ktuxeslt Slot, ktuxesqn Seq, ktuxesta State,ktuxesiz Undo from x$ktuxe where ktuxesta <> 'INACTIVE' and ktuxecfl like '%DEAD%' order by ktuxesiz asc;
+
+-- Identify undo segments containing dead transactions
+select useg.segment_name, useg.segment_id, useg.tablespace_name, useg.status from dba_rollback_segs useg
+where useg.segment_id in (select unique ktuxeusn from x$ktuxe where ktuxesta <> 'INACTIVE' and ktuxecfl like '%DEAD%');
+
+-- Identify the Time for transaction recovery to complete
+select usn, state, undoblockstotal "Total", undoblocksdone "Done", undoblockstotal-undoblocksdone "ToDo",
+decode(cputime,0,'unknown',sysdate+(((undoblockstotal-undoblocksdone) / (undoblocksdone / cputime)) / 86400)) "Estimated time to complete" from v$fast_start_transactions;
+
+-- distributed transactions
+select * from v$fast_start_servers;
+select * from v$fast_start_transactions;
+SELECT * FROM DBA_2PC_PENDING;
+SELECT * FROM dba_2pc_neighbors;
+select ktuxeusn, to_char(sysdate,'DD-MON-YYYY HH24:MI:SS') "Time", ktuxesiz, ktuxesta from x$ktuxe where ktuxecfl = 'DEAD';
+
+-- Other
+SELECT SYSDATE, b.name useg, b.inst# instid, b.status$ status, a.ktuxeusn xid_usn, a.ktuxeslt xid_slot, a.ktuxesqn xid_seq, a.ktuxesiz undoblocks FROM x$ktuxe a, undo$ b
+WHERE a.ktuxesta = 'ACTIVE' AND a. ktuxecfl LIKE '%DEAD%' AND a. ktuxeusn = b.us#;
+
+SELECT useg.segment_name, useg .segment_id, useg.instance_num, useg.tablespace_name, useg.status FROM dba_rollback_segs useg WHERE useg.segment_id IN
+(SELECT UNIQUE dtxn.ktuxeusn FROM x$ktuxe dtxn WHERE dtxn. ktuxesta <> 'INACTIVE' AND dtxn.ktuxecfl LIKE '%DEAD%');
+
+SELECT useg.segment_name, useg.segment_id, useg.instance_num, useg.tablespace_name, useg.status FROM dba_rollback_segs useg, gv$rollstat rstat WHERE useg.segment_id IN
+(SELECT UNIQUE dtxn.ktuxeusn FROM x$ktuxe dtxn WHERE dtxn. ktuxesta <> 'INACTIVE' AND dtxn. ktuxecfl LIKE '%DEAD%') AND rstat. usn = useg.segment_id AND rstat. status = 'ONLINE';
+
+-- find the ACTIVE or KILLED transactions from the undo tablespace
+select s.sid, s.serial#, s.username, s.status session_status, s.server, s.schemaname, s.osuser, s.process, p.spid, s.machine, s.port, s.terminal, s.program, s.type, s.service_name,
+s.sql_id, event, t.status transaction_status, t.start_time, t.used_urec, t.used_ublk, (select p.value from v$parameter p where p.name='db_block_size')*t.used_ublk/1024/1024 UNDO_SIZE_MB
+from v$session s join v$process p on (s.paddr=p.addr) join v$transaction t on (t.addr=s.taddr) order by t.used_ublk desc;
+
+-- undo parameters
+select a.inst_id, a.ksppinm "Parameter",b.ksppstvl "Session Value",c.ksppstvl "Instance Value" from x$ksppi a, x$ksppcv b, x$ksppsv c where a.indx = b.indx
+and a.indx = c.indx and a.inst_id=b.inst_id and b.inst_id=c.inst_id
+and a.ksppinm in ('_undo_autotune', '_smu_debug_mode', '_highthreshold_undoretention', '_rollback_segment_count', 'undo_tablespace','undo_retention','undo_management') order by 2;
+
+-- undo tablespace and datafiles
+select tablespace_name, file_id, file_name,sum(bytes)/1024/1024 SIZE_MB,sum(maxbytes)/1024/1024 SIZE_MAX_MB,autoextensible, status, online_status from dba_data_files
+where tablespace_name in (select tablespace_name from dba_tablespaces where retention like '%GUARANTEE' )
+group by file_id, file_name,autoextensible, status, online_status, tablespace_name order by tablespace_name;
+
+select tablespace_name, file_id, sum(bytes) FREE_BYTE, sum(bytes)/1024/1024 FREE_MB from dba_free_space
+where tablespace_name in (select tablespace_name from dba_tablespaces where retention like '%GUARANTEE')
+group by tablespace_name, file_id order by file_id;
+
+-- retention
+select min(maxquerylen), max(maxquerylen), avg(maxquerylen), stddev(maxquerylen), min(tuned_undoretention), max(tuned_undoretention), avg(tuned_undoretention), stddev(tuned_undoretention),
+max(unxpstealcnt), max(expstealcnt) from v$undostat;
+
+-- undo extents
+select tablespace_name,round(sum(case when status = 'UNEXPIRED' then bytes else 0 end) / 1048675,2) UNEXPIRED_MB ,
+round(sum(case when status = 'EXPIRED' then bytes else 0 end) / 1048576,2) EXPIRED_MB ,
+round(sum(case when status = 'ACTIVE' then bytes else 0 end) / 1048576,2) ACTIVE_MB
+from dba_undo_extents group by tablespace_name;
+
+-- restore points
+select * from v$restore_point order by time desc;
+select * from v$bgprocess p where p.NAME = 'FBDA';
+
+-- To identify the sessions responsible for high redo genearation Query V$SESS_IO. This view contains the column BLOCK_CHANGES which indicates how much blocks have been changed by the session. High values indicate a session generating lots of redo.(from this we can determine which session is generating high redo)
+SELECT s.inst_id, s.sid, s.serial#, s.username, s.program, i.block_changes FROM gv$session s, gv$sess_io i WHERE i.block_changes>0 AND s.sid = i.sid ORDER BY 6 desc, 2, 3, 4, 5;
+
+-- same as above, but with SQL
+select distinct s.inst_id, i.sid, s.serial#, z.addr, z.spid, z.username, s.user#, s.username, s.status, s.server, s.schemaname,
+s.osuser, s.process, s.machine, s.port, s.terminal, z.terminal, s.program, s.resource_consumer_group, s.logon_time, s.event,
+s.seconds_in_wait, s.state, s.service_name ,i.block_gets, i.consistent_gets, i.physical_reads, i.block_changes, i.consistent_changes,
+z.tracefile, s.sql_id, q.sql_text,
+s.prev_sql_id, p.sql_text as "PREV_SQL_TEXT"
+from gv$session s join gv$sess_io i on (i.sid=s.sid)
+left join gv$sqlarea q on (s.sql_id=q.sql_id)
+left join gv$sqlarea p on (s.prev_sql_id=p.sql_id)
+left join gv$process z on (z.addr=s.paddr)
+where i.block_changes>0
+order by i.block_changes desc;
+--AND p.spid=ANY('2414')
+
+spool off
+set markup html off
