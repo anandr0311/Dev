@@ -321,3 +321,1442 @@ order by i.block_changes desc;
 
 spool off
 set markup html off
+  
+  ===========================================================================================================
+  
+  rsa
+-----------------
+set head off
+set feedback off
+define rsa_script = rac_sessions2_active3.sql
+column rsa_name NEW_VALUE rsa_script NOPRINT;
+select decode(substr(version,1,instr(version,'.',1)-1),12,'rsa10g2.sql',11,'rsa10g2.sql',10,'rsa10g2.sql',9,'rac_sessions2_active3.sql','') AS rsa_name from v$instance;
+
+set head on
+set feedback 5
+@@&rsa_script
+---------------------------------
+rsa10g2
+--------------
+set linesize 110
+column username format a30 heading "Username"
+column sid format 9999
+column serial# format 99999 heading "SERIL#"
+column inst_id format 9 heading "I"
+column "Date Logged On" format a16
+column idle format a11 justify c head "Time|DD:HH:MM:SS"
+rem column spid format 9999990 justify c heading 'Unix|PID'
+column spid format a7 justify c heading 'Unix|PID'
+column rpid format a7 justify c heading 'Remote|PID'
+column program format a15 heading 'Program'
+column sql_hash_value heading 'HASH#'
+column status format a1 heading 'S|T'
+clear breaks
+
+select substr(v.username||' -'||machine,1,30) username, v.sid, v.serial#, v.inst_id,
+       to_char(v.logon_time,'mm/dd/yy hh:miam') "Date Logged On",
+       lpad(to_char(trunc(v.last_call_et/86400)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(last_call_et,86400)/3600)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(mod(last_call_et,86400),3600)/60)),2,'0')||':'||
+       lpad(to_char(trunc(mod(mod(mod(last_call_et,86400),3600),60))),2,'0') idle,
+       v.sql_id,
+       lpad(v.process,7) rpid,
+       lpad(p.spid,7) spid,
+       substr(v.status,1,1) status
+from gv$session v, gv$process p
+where v.paddr = p.addr(+)
+and v.inst_id = p.inst_id(+)
+and v.username is not null
+and (v.status = 'ACTIVE' or last_call_et = 0)
+and v.audsid <> userenv('SESSIONID')
+--and (v.wait_class <> 'Idle' or v.wait_class is null)
+and (v.wait_class <> 'Idle' or (v.wait_class = 'Idle' and event = 'SQL*Net message from dblink') )
+order by last_call_et
+/
+----------------------------------------------
+rac_sessions2_active3
+-----------------------------------
+set linesize 91
+column username format a23 heading "Username"
+column sid format 9999
+column serial# format 99999 heading "SERIL#"
+column inst_id format 9 heading "I"
+column "Date Logged On" format a16
+column idle format a11 justify c head "Time|DD:HH:MM:SS"
+rem column spid format 9999990 justify c heading 'Unix|PID'
+column spid format a7 justify c heading 'Unix|PID'
+column program format a15 heading 'Program'
+column sql_hash_value heading 'HASH#'
+column status format a1 heading 'S|T'
+clear breaks
+
+select substr(v.username||' -'||machine,1,23) username, v.sid, v.serial#, v.inst_id,
+       to_char(v.logon_time,'mm/dd/yy hh:miam') "Date Logged On",
+       lpad(to_char(trunc(v.last_call_et/86400)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(last_call_et,86400)/3600)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(mod(last_call_et,86400),3600)/60)),2,'0')||':'||
+       lpad(to_char(trunc(mod(mod(mod(last_call_et,86400),3600),60))),2,'0') idle,
+       --substr(v.program,1,15) program,
+       v.sql_hash_value,
+       lpad(p.spid,7) spid,
+       substr(v.status,1,1) status
+from gv$session v, gv$process p , gv$session_wait w
+where v.paddr = p.addr(+)
+and v.inst_id = p.inst_id(+)
+and v.username is not null
+and (v.status = 'ACTIVE' or last_call_et = 0)
+--and (v.inst_id,v.audsid) <> (select instance_number, userenv('SESSIONID')
+--                                     from v$instance)
+and v.audsid <> userenv('SESSIONID')
+and w.sid(+) = v.sid
+and w.inst_id(+) = v.inst_id
+and ( (event <> 'SQL*Net message from client'
+and event != 'rdbms ipc message'
+and event != 'pmon timer'
+and event != 'smon timer'
+and event != 'pipe get'
+and event != 'wakeup time manager'
+and event != 'PL/SQL lock timer'
+and event != 'pipe get'
+and event != 'queue messages'
+and event != 'HS message to agent'
+and event != 'wait for unread message on broadcast channel'
+and event not like '%remote message' )
+or (event is null)
+)
+order by last_call_et
+/
+
+rem column status clear
+
+===================================================================================================================================================================
+txenqueue
+
+set head off
+set feedback off
+define session_script = txenqueue10.sql
+column session_name NEW_VALUE session_script NOPRINT;
+select decode(substr(version,1,instr(version,'.',1)-1),12,'txenqueue10.sql',11,'txenqueue10.sql',10,'txenqueue10.sql',9,'txenqueue9.sql','') AS session_name from v$instance;
+
+set head on
+set feedback 5
+@@&session_script
+
+----------------------------------------
+txenqueue10
+---------------------------
+
+column SID format 9999
+col inst_id format 9 heading "I"
+column ltcall format a11 justify c head "Time|DD:HH:MM:SS"
+column status format a1 heading 'S|T'
+
+column EVENT format a20 trunc
+column ROW_WAIT_OBJ# format 9999999 heading "OBJ#"
+column ROW_WAIT_FILE# format 9999 heading "FILE#"
+column ROW_WAIT_BLOCK# format 999999 heading "BLOCK#"
+column ROW_WAIT_ROW# format 99999 heading "ROW#"
+column BLOCKING_SESSION format 999999 heading "BLK SID"
+column BLOCKING_INSTANCE format 99999 heading "BLK INST"
+
+prompt
+prompt Waiting for TX Enqueue
+prompt ======================
+
+select INST_ID, SID,
+       lpad(to_char(trunc(last_call_et/86400)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(last_call_et,86400)/3600)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(mod(last_call_et,86400),3600)/60)),2,'0')||':'||
+       lpad(to_char(trunc(mod(mod(mod(last_call_et,86400),3600),60))),2,'0') ltcall,
+       substr(status,1,1) status,
+  EVENT, ROW_WAIT_OBJ#, ROW_WAIT_FILE#, ROW_WAIT_BLOCK#, ROW_WAIT_ROW#,
+  BLOCKING_INSTANCE, BLOCKING_SESSION
+from gv$session
+where event like 'enq: TX%'
+and WAIT_TIME = 0
+order by BLOCKING_INSTANCE, BLOCKING_SESSION
+/
+
+prompt
+prompt Holding for TX Enqueue
+prompt ======================
+
+select INST_ID, SID,
+       lpad(to_char(trunc(last_call_et/86400)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(last_call_et,86400)/3600)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(mod(last_call_et,86400),3600)/60)),2,'0')||':'||
+       lpad(to_char(trunc(mod(mod(mod(last_call_et,86400),3600),60))),2,'0') ltcall,
+       substr(status,1,1) status,
+       EVENT
+from gv$session
+where (inst_id, sid) in (select BLOCKING_INSTANCE, BLOCKING_SESSION
+                         from gv$session where BLOCKING_SESSION is not null)
+order by INST_ID, SID
+/
+
+
+-----------------------------------------------------
+txenqueue9
+------------------------------------------------
+set feedback off
+set transaction read only;
+set feedback on
+
+prompt
+prompt Query 1. Waiting for TX Enqueue where mode is Exclusive
+prompt =====================================
+prompt
+set linesize 90
+set pagesize 66
+col inst_id format 99 heading "I"
+col sid format 999999
+col c1 for a15
+col type format a2
+column ltcall format a11 justify c head "Time|DD:HH:MM:SS"
+column status format a1 heading 'S|T'
+
+select /*+ rule */ l.inst_id ,l.SID,
+       lpad(to_char(trunc(last_call_et/86400)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(last_call_et,86400)/3600)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(mod(last_call_et,86400),3600)/60)),2,'0')||':'||
+       lpad(to_char(trunc(mod(mod(mod(last_call_et,86400),3600),60))),2,'0') ltcall,
+       substr(status,1,1) status,
+       l.TYPE,l.ID1,l.ID2,l.LMODE,l.REQUEST
+from gv$lock l,gv$session s
+where l.type like 'TX' and l.REQUEST =6
+and l.inst_id=s.inst_id and l.sid=s.sid
+order by id1
+/
+
+
+prompt
+prompt Query 2. Holding for TX Enqueue where mode greater than 6
+prompt =======================================
+prompt
+
+select /*+ rule */ l.inst_id ,l.SID,
+       lpad(to_char(trunc(last_call_et/86400)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(last_call_et,86400)/3600)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(mod(last_call_et,86400),3600)/60)),2,'0')||':'||
+       lpad(to_char(trunc(mod(mod(mod(last_call_et,86400),3600),60))),2,'0') ltcall,
+       substr(status,1,1) status,
+ l.TYPE,l.ID1,l.ID2,l.LMODE,l.REQUEST
+from gv$lock l,gv$session s
+where l.type like 'TX'
+and l.LMODE =6
+and (l.ID1,l.ID2) in (select id1,id2 from gv$lock where type like 'TX' and REQUEST =6)
+and l.inst_id=s.inst_id
+and l.sid=s.sid
+order by id1
+/
+
+prompt
+prompt Query 3. Object# ,File#, Block# and Slot# TX Enqueue in detail
+prompt ========================================
+prompt
+column object_name format a25 trunc
+column object_no format 999999 heading "OBJ#"
+column Rfile_no format 99999 heading "RFILE#"
+column Block_no format 9999999 heading "BLOCK#"
+column Row_no format 99999 heading "ROW#"
+
+select inst_id , sid,
+       lpad(to_char(trunc(last_call_et/86400)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(last_call_et,86400)/3600)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(mod(last_call_et,86400),3600)/60)),2,'0')||':'||
+       lpad(to_char(trunc(mod(mod(mod(last_call_et,86400),3600),60))),2,'0') ltcall,
+       substr(s.status,1,1) status,
+  ROW_WAIT_OBJ# object_no, object_name, ROW_WAIT_FILE# Rfile_no,
+  ROW_WAIT_BLOCK# Block_no ,ROW_WAIT_ROW# Row_no
+from gv$session s, dba_objects o
+where (inst_id,sid) in (select inst_id,sid from gv$session_wait where p1='1415053318')
+and s.ROW_WAIT_OBJ# = o.object_id
+/
+
+
+rem prompt
+rem prompt Query 5. Finding the row value
+rem prompt ====================
+rem prompt
+rem select * from <Owner>.<Table Name> where rowid like
+rem DBMS_ROWID.ROWID_CREATE(1,&Object_No,&Rfile_No, &Block_No, &Row_Number)
+rem /
+rem select r_object_id from mem_ecm.dm_sysobject_s
+rem where dbms_rowid.ROWID_BLOCK_NUMBER(rowid) = 165894
+rem and dbms_rowid.ROWID_RELATIVE_FNO(rowid) = 24
+rem and dbms_rowid.ROWID_ROW_NUMBER(rowid) = 12;
+
+
+set feedback off
+rollback;
+set feedback on
+
+==========================================================================================================================
+ss
+-------------------------------------
+set feedback off
+define ss_script = session_sql9i.sql
+column ss_name NEW_VALUE ss_script NOPRINT;
+select decode(substr(version,1,instr(version,'.',1)-1),12,'session_sql10g.sql',11,'session_sql10g.sql',10,'session_sql10g.sql',9,'session_sql9i.sql','') AS ss_name from v$instance;
+
+set feedback 5
+@@&ss_script &1
+-------------------------------------------------------
+session_sql10g
+----------------------------------------------------------
+set verify off
+
+variable sql_address varchar2(20)
+variable sql_id varchar2(13)
+variable prev_sql_addr varchar2(20)
+variable prev_sql_id varchar2(20)
+variable child_number number
+variable prev_child_number number
+variable outline_cat varchar2(10)
+
+set feedback off
+begin
+   select sql_address, sql_id, prev_sql_addr, prev_sql_id, sql_child_number, prev_child_number
+   into :sql_address, :sql_id, :prev_sql_addr, :prev_sql_id, :child_number, :prev_child_number
+   from v$session
+   where sid = &1;
+
+   select substr(outline_category,1,10) into :outline_cat from v$sql
+   where /* address = decode(:sql_address,0,:prev_sql_addr,:sql_address)
+   and */ sql_id = decode(nvl(:sql_id,'0'),'0',:prev_sql_id,:sql_id)
+   and rownum = 1;
+
+end;
+/
+
+column sql_address format a20
+column sql_id format a13
+column prev_sql_addr format a20
+column prev_sql_id format a13
+column outline_cat format a10
+column child format 999999
+
+select :sql_address sql_address, :sql_id sql_id, :child_number child,
+       :prev_sql_addr prev_sql_addr, :prev_sql_id prev_sql_id,
+       :outline_cat outline_cat
+from dual;
+
+set feedback off
+
+
+SELECT t.sql_text
+from v$session s, v$sqltext_with_newlines t
+--where t.address = s.sql_address -- decode(s.sql_address,0,s.prev_sql_addr,s.sql_address)
+where t.address = decode(nvl(s.sql_id,'0'),'0',s.prev_sql_addr,s.sql_address)
+and t.sql_id = decode(nvl(s.sql_id,'0'),'0',s.prev_sql_id,s.sql_id)
+and sid = &1
+order by t.piece
+/
+
+begin
+  if NVL(:sql_id,'0') = '0' then
+     :sql_id := :prev_sql_id;
+     :sql_address := :prev_sql_addr;
+  end if;
+end;
+               
+
+---------------------------------------------------------
+session_sql9i
+----------------------------------------------------------
+
+rem session_sql9i.sql
+
+set verify off
+
+variable sql_address varchar2(20)
+variable sql_hash_value number
+variable prev_sql_addr varchar2(20)
+variable prev_hash_value number
+variable outline_cat varchar2(10)
+
+set feedback off
+begin
+   select sql_address, sql_hash_value, prev_sql_addr, prev_hash_value
+   into :sql_address, :sql_hash_value, :prev_sql_addr, :prev_hash_value
+   from v$session
+   where sid = &1;
+
+   select substr(outline_category,1,10) into :outline_cat from v$sql
+   where address = decode(:sql_hash_value,0,:prev_sql_addr,:sql_address)
+   and hash_value = decode(:sql_hash_value,0,:prev_hash_value,:sql_hash_value)
+   and rownum = 1;
+
+end;
+/
+
+column sql_address format a20
+column prev_sql_addr format a20
+column outline_cat format a10
+
+select :sql_address sql_address, :sql_hash_value sql_hash_value,
+       :prev_sql_addr prev_sql_addr, :prev_hash_value prev_hash_value,
+       :outline_cat outline_cat
+from dual;
+
+set feedback off
+
+
+SELECT t.sql_text
+from v$session s, v$sqltext_with_newlines t
+where t.address = decode(s.sql_hash_value,0,s.prev_sql_addr,s.sql_address)
+and t.hash_value = decode(s.sql_hash_value,0,s.prev_hash_value,s.sql_hash_value)
+and sid = &1
+order by t.piece
+/
+
+begin
+  if :sql_hash_value = 0 then
+     :sql_hash_value := :prev_hash_value;
+     :sql_address := :prev_sql_addr;
+  end if;
+end;
+/
+
+select buffer_gets, executions, decode(executions,0,0,buffer_gets/executions) bufperexec,
+       disk_reads, decode(executions,0,0,disk_reads/executions) diskperexec,
+       rows_processed "# ROWS",
+       decode(executions,0,0,rows_processed/executions) rowsperexec
+from v$sqlarea
+where hash_value = :sql_hash_value
+/
+
+set feedback on
+
+@@explain_plan_hash :sql_address :sql_hash_value
+
+
+==============================================================================
+sw
+===================================================================================
+
+
+set feedback 5
+set pagesize 100
+@@rac10g_sw4.sql
+
+--------------------------------------------------
+rac10g_sw4.sql
+-----------------------------------
+
+set linesize 100
+column event format a30
+column username format a14
+column sid format 99999 heading "SID"
+column inst_id format 9 heading "I"
+column wait_time format 9 heading "Wa|Tm"
+column seconds_in_wait format 99999 heading "Wait|(Secs)"
+column p3 format 99999999
+
+select s.inst_id, s.sid, s.username, event, wait_time, seconds_in_wait, p1,p2,p3
+from gv$session s
+where wait_class <> 'Idle'
+and s.audsid <> userenv('sessionid')
+order by seconds_in_wait desc, username
+/
+==============================================================================================================================
+crsstat
+===========================================================
+VERSION="1.2.2"
+
+if [[ `uname -s` = "SunOS" ]] ; then
+  AWK=/usr/bin/nawk
+else
+  AWK=/usr/bin/awk
+fi
+
+
+function print_usage {
+  echo " "
+  echo "Usage: crsstat [-h] [-c] [search term]"
+  echo " "
+  echo "  -h => print this message"
+  echo "  -c => output the resources by cluster or local"
+  echo " "
+  echo "  Examples:"
+  echo "    crsstat               # show all resources"
+  echo "    crsstat listener      # only show listener resources"
+  echo "    crsstat database      # only show database resources"
+  echo "    crsstat -c listener   # only show database resources sorted by cluster/local"
+  echo " "
+  echo "  Output Contains the following fields:"
+  echo "    Resource Name"
+  echo "    Resource Type, which includes an identifier C-Cluster and L-Local"
+  echo "    Target State"
+  echo "    Current State"
+  echo "    Current Node (11gR2: or the last node in paraenthesis if the resource is Offline)"
+  echo "    Failure Count (11gR2 only)"
+  echo "    Restart Count (11gR2 only)"
+  echo "    State Details (11gR2 only)"
+  exit 101
+} # print_usage
+
+
+function get_cmdline_options {
+  while getopts ":chv" opt; do
+    case ${opt} in
+      c ) sort_cluster_local="true"
+          ;;
+      h ) print_usage
+          exit 10
+          ;;
+      v ) echo "Version: $VERSION"
+          exit 100
+          ;;
+      * ) echo "Error: Invalid option specified."
+          print_usage
+          exit 10
+          ;;
+    esac
+  done
+  shift $(($OPTIND -1))
+} # get_cmdline_options
+
+get_cmdline_options $@
+env_file=$(dirname $0)/crsstat.env
+if [[ -e ${env_file} ]] ; then
+  . ${env_file}
+else
+  CRSCMD="query crs softwareversion"
+  HASCMD="query has softwareversion"
+  # Try to auto-determine CRS or HAS home & version
+  CSSD_DIR=`dirname $( ps -eo args | grep ocssd.bin | grep -v grep | ${AWK} '{print $1}')`
+  if [[ ! -z ${CSSD_DIR} || ${CSSD_DIR} == "." ]] ; then
+    CSSD_DIR=$(dirname $( ps -eo args | grep hasd.bin | grep -v grep | ${AWK} '{print $1}'))
+  fi
+  if [[ ! -z ${CSSD_DIR} ]] ; then
+    GRID_HOME=`echo $CSSD_DIR|${AWK} '{print substr( $1, 1, length( $1)-4)}'`
+    retval=`${CSSD_DIR}/crsctl ${CRSCMD}`
+    rc=$?
+    if (( ${rc} != 0 )) ; then
+      retval=`${CSSD_DIR}/crsctl ${HASCMD}`
+      rc=$?
+      if (( ${rc} != 0 )); then
+        echo "The CRS or HAS version could not be determined."
+        echo "Commands to query for either failed."
+        echo "Exiting...."
+        exit 2
+      fi
+    fi
+    GRID_VER=`echo "${retval}" | ${AWK} '{print substr( $NF, 2, 4)}'`
+    if [[ ! -z ${GRID_HOME} || ! -z ${GRID_VER} ]] ; then
+      echo "GRID_HOME=${GRID_HOME}" > ${env_file}
+      echo "GRID_VER=${GRID_VER}" >> ${env_file}
+    fi
+  else
+    echo "The CRS or HAS home directory could not be determined."
+    echo "If CRS or HAS are down, this could be the cause of the error."
+    echo "Exiting...."
+    exit 1
+  fi
+fi
+
+if [[ -z ${GRID_HOME} || -z ${GRID_VER} ]] ; then
+  echo "The configuration of your GRID Infrastructure could not be determined."
+  echo "Exiting...."
+  exit 5
+fi
+
+
+format_crs_status_resource='
+BEGIN {
+  FS="=";
+  ittype=empty
+  lastnode=""
+}
+{
+if ( $1 == "NAME") {
+    tname=$2
+    tx=split( $2, tsplit, ".")
+    tabrev=tsplit[tx]
+    ttype="unknown"
+    if ( tabrev == "asm" )
+      ttype="ASM"
+    if ( tabrev == "lsnr" )
+      ttype="Listener"
+    if ( tabrev == "db" )
+      ttype="Database"
+    if ( tabrev == "inst" )
+      ttype="Instance"
+    if ( tabrev == "vip" )
+      ttype="Virtual IP"
+    if ( tabrev == "ons" )
+      ttype="Ora Notif Svc"
+    if ( tabrev == "cs" )
+      ttype="Service"
+    if ( tabrev == "srv" )
+      ttype="Service"
+  }
+  if ( $1 == "TYPE") {
+    ottype=$2
+    if (ottype == "application") {
+      ottype=ttype
+      ittype=empty
+    }
+    else {
+      tx=split( $2, tsplit, ".")
+      ittype=tsplit[2]
+      if ( ittype == "asm" )
+        ottype="ASM"
+      else if ( ittype == "gsd" )
+        ottype="Gbl Svc Daemon"
+      else if ( ittype == "listener" )
+        ottype="Listener"
+      else if ( ittype == "scan_listener" )
+        ottype="SCAN Listener"
+      else if ( ittype == "scan_vip" )
+        ottype="SCAN VIP"
+      else if ( ittype == "oc4j" )
+        ottype="OC4J"
+      else if ( ittype == "eons" )
+        ottype="eons"
+      else if ( ittype == "ons" )
+        ottype="Ora Notif Svc"
+      else if ( ittype == "network" )
+        ottype="Network (VIP)"
+      else if ( ittype == "cluster_vip_net1" )
+        ottype="Cluster VIP"
+      else ottype=ittype
+    }
+  }
+if ( $1 == "CARDINALITY_ID" ) {
+    if ( $2 == "ONLINE" || $2 == "OFFLINE" ) {
+      rtype="L"
+    }
+    else {
+      rtype="C"
+    }
+  }
+  if ( $1 == "LAST_SERVER") {
+    lastnode="("$2")"
+  }
+  if ( $1 == "RESTART_COUNT") {
+    trc=$2
+  }
+  if ( $1 == "FAILURE_COUNT") {
+    tfc=$2
+  }
+  if ( $1 == "TARGET") {
+    ttarget=$2
+    tx=split( $2, targetsplit, ",")
+  }
+  if ( $1 == "STATE") {
+    if ( ittype == "asm" || ittype == "ons" || ittype == "eons" || ittype == "network" || ittype == "listener" ) {
+      stx=split( $2, statesplit, ",")
+    }
+    else {
+      tx=split( $2, tsplit, " ")
+      tstate=tsplit[1]
+      tnode=tsplit[3]
+    }
+  }
+  if ( $1 == "STATE_DETAILS") {
+    tdetail=$2
+    if ( ittype == "asm" || ittype == "ons" || ittype == "eons" || ittype == "network" || ittype == "listener" ) {
+      for (i in statesplit) {
+        tx=split( statesplit[i], tsplit, " ")
+        tstate=tsplit[1]
+        tnode=tsplit[3]
+        ttarget=targetsplit[i]
+        gsub(/ */,"",ttarget)
+        gsub(/ */,"",tstate)
+        if ( tnode == "" )
+          tnode=lastnode
+        if ( parm_rtype == "A" || ( parm_rtype == rtype ) ) {
+          if ( ttarget == "ONLINE" && tstate != "ONLINE" )
+            printf( "^[[0;31;40m%-40s %-14s %1s %-10s %-12s %-15s %2s %2s %s^[[0m\n", tname, ottype, rtype, ttarget, tstate, tnode, tfc, trc, tdetail)
+          else
+            printf( "^[[0;37;40m%-40s %-14s %1s %-10s %-12s %-15s %2s %2s %s^[[0m\n", tname, ottype, rtype, ttarget, tstate, tnode, tfc, trc, tdetail)
+			 }
+      }
+    }
+    else {
+      if ( tnode == "" )
+        tnode=lastnode
+      if ( parm_rtype == "A" || ( parm_rtype == rtype ) ) {
+        if ( ttarget == "ONLINE" && tstate != "ONLINE" )
+          printf( "^[[0;31;40m%-40s %-14s %1s %-10s %-12s %-15s %2s %2s %s^[[0m\n", tname, ottype, rtype, ttarget, tstate, tnode, tfc, trc, tdetail)
+        else
+          printf( "^[[0;37;40m%-40s %-14s %1s %-10s %-12s %-15s %2s %2s %s^[[0m\n", tname, ottype, rtype, ttarget, tstate, tnode, tfc, trc, tdetail)
+      }
+    }
+  }
+}'
+# End of variable: format_crs_status_resource
+
+format_crs_stat='
+{
+  if ($1 == "NAME") {
+    tname=$2
+  }
+  if ($1 == "TYPE") {
+    ttype=$2
+  }
+  if ($1 == "TARGET") {
+    ttarget=$2
+  }
+  if ($1 == "STATE") {
+    split( $2, tsplit, " ")
+    tstate=tsplit[1]
+    tnode=tsplit[3]
+    if ( ttarget == "ONLINE" && tstate != "ONLINE" )
+      printf( "^[[0;31;40m%-40s %-14s %-10s %-12s %-15s^[[0m\n", tname, ttype, ttarget, tstate, tnode)
+    else
+      printf( "^[[0;37;40m%-40s %-14s %-10s %-12s %-15s^[[0m\n", tname, ttype, ttarget, tstate, tnode)
+  }
+}'
+# End of variable: format_crs_stat
+
+printf "^[[0;40;37m\n\n%-40s %-16s %-10s %-12s %-15s %-2s %-2s %s^[[0m\n" "Resource Name" "Resource Type" "Target" "State" "Node" "FC" "RC" "State Details"
+printf "^[[0;40;37m%-40s %-16s %-10s %-12s %-15s %-2s %-2s %s^[[0m\n" "----------------------------------------" "----------------" "----------" "------------" "---------------" "--" "--" "---------------"
+
+if [[ ${GRID_VER} == "11.2" || ${GRID_VER} == "12.1" || ${GRID_VER} == "12.2" || ${GRID_VER} == "19.0" ]] ; then
+  format_output=${format_crs_status_resource}
+  if [[ "$1" != "-c" ]] ; then
+    searchterm=$1
+  elif [[ ! -z "$2" ]] ; then
+    searchterm=$2
+  fi
+  if [[ ! -z ${sort_cluster_local} ]] ; then
+    sort_cluster_local="local"
+printf "^[[0;40;37mLocal Resources^[[0m\n"
+    printf "^[[0;40;37m--------------------------------------------------------------------------------\n"
+    if [[ -z ${searchterm} ]] ; then
+      ${GRID_HOME}/bin/crsctl status resource -v | ${AWK} -v "parm_rtype=L" "${format_output}"
+    else
+      ${GRID_HOME}/bin/crsctl status resource -v | ${AWK} -v "parm_rtype=L" "${format_output}" | grep -i "${searchterm}"
+    fi
+    sort_cluster_local="cluster"
+    printf "^[[0;40;37m\nCluster Resources^[[0m\n"
+    printf "^[[0;40;37m--------------------------------------------------------------------------------^[[0m\n"
+    if [[ -z ${searchterm} ]] ; then
+      ${GRID_HOME}/bin/crsctl status resource -v | ${AWK} -v "parm_rtype=C" "${format_output}"
+    else
+      ${GRID_HOME}/bin/crsctl status resource -v | ${AWK} -v "parm_rtype=C" "${format_output}" | grep -i "${searchterm}"
+    fi
+  else
+    if [[ -z ${searchterm} ]] ; then
+      ${GRID_HOME}/bin/crsctl status resource -v | ${AWK} -v "parm_rtype=A" "${format_output}"
+    else
+      ${GRID_HOME}/bin/crsctl status resource -v | ${AWK} -v "parm_rtype=A" "${format_output}" | grep -i "${searchterm}"
+    fi
+  fi
+else
+  if [[ -e ${GRID_HOME}/bin/crs_stat ]] ; then
+    format_output=${format_crs_stat}
+    if [[ "$1" != "-c" ]] ; then
+      searchterm=$1
+    elif [[ ! -z "$2" ]] ; then
+      searchterm=$2
+    fi
+    if [[ -z ${searchterm} ]] ; then
+      ${GRID_HOME}/bin/crs_stat | ${AWK} -F= "${format_output}"
+    else
+      ${GRID_HOME}/bin/crs_stat | ${AWK} -F= "${format_output}" | grep -i "${searchterm}"
+    fi
+  else
+    echo "crs_stat was not found in the ${GRID_HOME}/bin"
+  fi
+fi
+
+exit 0
+
+------------------------------------------------------------
+.env
+GRID_HOME=/s01/app/19.0.0.0/grid
+GRID_VER=19.0
+-----------------------------------------------
+
+
+=====================================================================================================================================================================
+
+
+clear
+  #### setup variables exports
+  export ORATAB=/etc/oratab
+  export SCRIPT_DIR="/home/oracle/tools/build"
+
+  export pwd=`pwd`
+  export FL_TNS="01_tnsnames_listener_both.txt"
+  export FL_MKDIRS="02_mkdirs_standby.txt"
+  export FL_DGPRM="03_dgparameters_primary.sql"
+  export FL_STBY_RDO="04_standbylogs_primary.sql"
+  export FL_DUPL="05_duplicate.cmd"
+  export FL_RAC="06_RACsetup_standby.txt"
+  export FL_APPLY="07_check_apply.txt"
+  export FL_BRKR="08_broker.txt"
+
+  #### Cleanup previous run
+  rm -f $FL_TNS
+  rm -f $FL_MKDIRS
+  rm -f $FL_DGPRM
+  rm -f $FL_STBY_RDO
+  rm -f $FL_DUPL
+  rm -f $FL_RAC
+  rm -f $FL_APPLY
+  rm -f $FL_BRKR
+
+  # gather hostname
+  hostname=`hostname`
+
+###*************************************************************************
+###*****    functions             ******************************************
+###*************************************************************************
+
+function sqlplus_res {
+  export sqlOP=`${ORACLE_HOME}/bin/sqlplus -s "/ as sysdba" <<EOF
+  set head off feedback off linesize 1000 define ~
+  $1;
+exit
+EOF`
+echo $sqlOP
+}
+
+###*************************************************************************
+###*****    main script start     ******************************************
+###*************************************************************************
+
+  echo "----------------------------------------------------------------------------------"
+  echo "       Welcome, you are executing 12cCreateRACDGsetup.sh on ${hostname}"
+  echo "----------------------------------------------------------------------------------"
+  echo " "
+  echo "----------------------------------------------------------------------------------"
+  echo "  These scripts will assist in the setup of a Physical Standby RAC database"
+  echo "  Please review all prerequisites before implementing!"
+  echo "----------------------------------------------------------------------------------"
+  echo "  Prerequisites:"
+  echo " "
+  echo "  *  Primary instance had parameter instance_name and db_unique_name renamed from "
+  echo "          standalone to primary name [Ex:  -> ] "
+  echo "  *  Database has recent valid backup after being converted to primary. "
+  echo "  *  Primary must be open in archivelog mode"
+  echo "  *  OID entries created for primary and standby"
+  echo "  *  /etc/oratab entries created for primary and standby"
+  echo "----------------------------------------------------------------------------------"
+  read -p "Hit Enter to Continue..."
+
+  cd $SCRIPT_DIR
+  rm -f 12cCreateRacDGsetup.tar.gz
+  tar -czf 12cCreateRacDGsetup.tar.gz 12c_dataguard_rac/*
+  cd $SCRIPT_DIR/12c_dataguard_rac
+  
+  ###*************************************************************************
+  ###*****  Gathering input from users for the database deatils **************
+  ###*************************************************************************
+
+  ####   Dataguard Parameters   ####
+
+  env=`echo $hostname | cut -c1 | tr '[:lower:]' '[:upper:]'`
+  # read the environment: dev, test, or prod
+  # Source Default Parameters
+  if [[ "$env" = "D" ]]
+  then
+    DBTYPE="DEV"
+    . ./dgparms_dev.lst
+  elif [[ "$env" = "T" ]]
+  then
+    DBTYPE="TEST"
+    . ./dgparms_test.lst
+  elif [[ "$env" = "P" ]]
+  then
+    DBTYPE="PROD"
+    . ./dgparms_prod.lst
+  fi
+  cenv=`echo $env | tr '[:upper:]' '[:lower:]'`
+  echo "The server you have chosen is $DBTYPE"
+
+  if [[ $hostname == p* ]]; then
+    sys=`/home/oracle/tools/user/get_ca_user.pl -u cporasys -a`
+    syspwd=`/home/oracle/tools/user/get_ca_user.pl -u cporasys -p`
+  else
+    sys=`/home/oracle/tools/user/get_ca_user.pl -u ctorasys -a`
+    syspwd=`/home/oracle/tools/user/get_ca_user.pl -u ctorasys -p`
+  fi
+
+  #### gather db/instance names
+  while [[ -z $shared ]]; do
+    echo " "
+    echo "Please enter shared container name. [Ex:db03 ] "
+    read shared
+  done
+  echo " "
+  echo "Accepted: $shared"
+
+  #### Primary container name
+  while [[ -z $primary ]]; do
+    echo " "
+    echo "Please enter primary container name. [Ex:db03i ] "
+    read primary
+  done
+  echo " "
+  echo "Accepted: $primary"
+
+#### Standby container name
+  echo " "
+  echo "Confirm the standby container name: ${primary%?}d "
+  echo "  [Hit enter to accept or input name] "
+  read standby
+  if [[ -z ${standby} ]]; then
+     standby=${primary%?}d
+  fi
+  echo " "
+  echo "Accepted: $standby"
+
+  #### Gather primary database - first instance name
+  while [[ -z $primary_inst1 ]]; do
+    echo " "
+    echo "Please enter primary instance name on $hostname. [Ex: ct13oemi1] "
+    read primary_inst1
+  done
+  echo " "
+  echo "Accepted: $primary_inst1"
+  echo "Checking prerequisite of instance name in /etc/oratab..."
+
+  #### grep /etc/oratab for primary instance name, otherwise this script will fail
+  CONTAINER_EXISTS=$(grep $primary_inst1 /etc/oratab)
+  if [[ $CONTAINER_EXISTS ]]; then
+    echo "Confirmed, primary exists in oratab, continuing..."
+  else
+    echo "Unable to find primary instance $primary_inst1 in oratab, this is a prerequisite listed above, exiting..."
+    exit -1
+  fi
+
+  #### Gather linux nodes for cluster
+  primary_node1=$hostname
+  primary_node2=`/s01/app/12.2.0.1/grid/bin/olsnodes | sed -n 2p`
+  standby_nodes=(${primary_node1/at/fw} ${primary_node2/at/fw})
+
+  echo "Confirm the standby hosts: ${standby_nodes[0]} ${standby_nodes[1]} "
+  echo "  [Hit enter to accept or input node names, whitespace delimited] "
+  read user_standby_node
+  if [[ ! -z ${user_standby_node} ]]; then
+    declare -a array standby_nodes=( $user_standby_node )
+    array=(${standby_nodes// / })
+  fi
+  echo " "
+  echo "Accepted Cluster Nodes: $primary_node1 $primary_node2 ${standby_nodes[0]} ${standby_nodes[1]} "
+
+#### Query primary instance for primary scan info
+  export ORACLE_SID=$primary_inst1
+  export ORACLE_HOME=`cat /etc/oratab | grep $primary_inst1: | awk -F ":" '{print $2}'`
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/usr/lib
+  export PATH=$ORACLE_HOME/bin:$PATH
+
+  primary_scan=`sqlplus_res "select substr(value,1,instr(value,':') - 1) from v\\$parameter where name='remote_listener'"`
+  primary_scanPort=`sqlplus_res "select regexp_substr(value, '[^:]*$') from v\\$parameter where name='remote_listener'"`
+
+  #### Gather standby cluster scan
+  echo " "
+  echo "Confirm standby cluster configured to use the scan: ${primary_scan/at/fw} "
+  echo "  [Hit enter to accept or input SCAN] "
+  read standby_scan
+  if [[ -z ${standby_scan} ]]; then
+    standby_scan=${primary_scan/at/fw}
+  fi
+  echo " "
+  echo "Accepted Cluster Scans: $primary_scan $standby_scan "
+
+  #### Gather standby cluster scan port
+  echo " "
+  echo "Confirm the SCAN $standby_scan is using port: $primary_scanPort "
+  echo "  [Hit enter to accept or input port] \n"
+  read standby_scanPort
+  if [[ -z ${standby_scanPort} ]]; then
+     standby_scanPort=$primary_scanPort
+  fi
+  echo " "
+  echo "Accepted Standby Cluster Scan Port: $standby_scanPort "
+
+  #### Gather Standby Instance Names
+  primary_inst2=${primary_inst1/i1/i2}
+  standby_insts=(${primary_inst1/i1/d1} ${primary_inst1/i1/d2})
+  echo " "
+  echo "Confirm the Standby Instance names: ${standby_insts[0]} ${standby_insts[1]} "
+  echo "  [Hit enter to accept or input instance names, whitespace delimited] "
+  read user_standby_inst
+  if [[ ! -z ${user_standby_inst} ]]; then
+    declare -a array standby_insts=( $user_standby_inst )
+    array=(${standby_insts// / })
+  fi
+  standby_inst1=${standby_insts[0]}
+  standby_inst2=${standby_insts[1]}
+  echo " "
+  echo "Accepted Cluster Instances: $primary_inst1 $primary_inst2 $standby_inst1 $standby_inst2"
+
+#######  Finished gathering cluster info, time to start generating scripts
+
+  #### Port for Duplicate
+  while [[ -z $duplicate_port ]]; do
+    echo " "
+    echo "Please enter port number to be used for standby duplicate. [Ex: 1545] "
+    read duplicate_port
+  done
+
+  if [[ -z $ORACLE_BASE ]]; then
+    export ORACLE_BASE="/s01/app/oracle"
+  fi
+
+  mkdir -p "$ORACLE_BASE/admin/$shared/"
+  cd $ORACLE_BASE/admin/$shared/
+
+  #### untar the create scripts in our new cdb directory
+  tar -xzf $SCRIPT_DIR/12cCreateRacDGsetup.tar.gz -C .
+  rm -rf ./dataguard
+  mv ./12c_dataguard_rac ./dataguard
+  cd dataguard
+
+  echo " "
+  genscriptdir="`pwd`"
+
+
+  #### Gather mount info
+  datafile_mount=`sqlplus_res "select distinct replace(name, regexp_substr(name, '[^/]+$', 1, 1), null) from v\\$datafile UNION select distinct replace(name, regexp_substr(name, '[^/]+$', 1, 1), null) from v\\$tempfile"`
+  redolog_mount=`sqlplus_res "select distinct replace(member, regexp_substr(member,'[^/]+$', 1, 1), null) from v\\$logfile"`
+  ctlfile_mount=`sqlplus_res "select substr(name, 1, instr(name, '/',-1)) PATH from v\\$controlfile order by name asc"`
+
+  declare -a array datafile_mounts=( $datafile_mount )
+  array=(${datafile_mounts// / })
+  declare -a array redolog_mounts=( $redolog_mount )
+  array=(${redolog_mounts// / })
+  declare -a array ctlfile_mounts=( $ctlfile_mount )
+  array=(${ctlfile_mounts// / })
+
+  fra_mount=`sqlplus_res "select value from v\\$parameter where name='db_recovery_file_dest'"`
+  arch1=`sqlplus_res "select value from v\\$parameter where name='log_archive_dest_1'"`
+  arch2=`sqlplus_res "select value from v\\$parameter where name='log_archive_dest_2'"`
+  adump=`sqlplus_res "select value from v\\$parameter where name='audit_file_dest'"`
+  pdb=`sqlplus_res "select pdb_name from dba_pdbs where pdb_name not like '%SEED%' and rownum=1"`
+  pdb=`echo $pdb | tr '[:upper:]' '[:lower:]'`
+  pdb_serv=`echo $pdb|sed 's/\plug//g'`
+
+echo "----------------------------------------------------------------------------------"
+  echo "      User Inputs:"
+  echo " "
+  echo " Shared container name : $shared "
+  echo " Primary container - Instance names: $primary - $primary_inst1 $primary_inst2"
+  echo " Standby container - Instance names: $standby - $standby_inst1 $standby_inst2"
+  echo " Primary Nodes: $primary_node1 $primary_node2 "
+  echo " Standby Nodes: ${standby_nodes[0]} ${standby_nodes[1]} "
+  echo " Scan Names   : $primary_scan $standby_scan "
+  echo " "
+  echo " Redo mounts         : ${redolog_mounts[@]}"
+  echo " Archive mounts      : $arch1 $arch2"
+  echo " FRA mount           : $fra_mount"
+  echo " Data/Temp Mounts    : ${datafile_mounts[@]}"
+  echo " Control Files Mounts: ${ctlfile_mounts[@]}"
+  echo " "
+  echo "----------------------------------------------------------------------------------"
+  echo " Generated Scripts Directory: $genscriptdir"
+  echo "----------------------------------------------------------------------------------"
+  echo "   Please review details above, next step is to prepare scripts."
+  echo "   [Hit enter to continue or C to cancel] "
+  echo "----------------------------------------------------------------------------------"
+  read CONTINUE
+  dbcheck=`echo $CONTINUE | tr '[:lower:]' '[:upper:]'`
+
+  if [[ "$CONTINUE" = "C" ]]
+  then
+    echo "Cancelling..."
+    exit
+  fi
+
+######################################################################################
+# Section 01 -- generates script 01
+######################################################################################
+# This section creates TNSNAMES.ora and LISTENER.ORA entries that are needed in primary and standby in $FL_TNS
+######################################################################################
+
+echo " " > $FL_TNS
+echo "-Update TNSNAMES.ORA file on all primary and standby nodes
+
+$primary =
+  (DESCRIPTION =
+    (ADDRESS_LIST =
+      (ADDRESS = (PROTOCOL = TCP)(HOST = $primary_scan)(PORT = $primary_scanPort))
+    )
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = $primary)
+    )
+  )
+$standby =
+  (DESCRIPTION =
+    (ADDRESS_LIST =
+      (ADDRESS = (PROTOCOL = TCP)(HOST = $standby_scan)(PORT = $standby_scanPort))
+    )
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = $standby)
+    )
+  )
+
+-Include in the TNSNAMES.ORA in $hostname, the alias will be used for duplicate
+
+${standby}_dupl =
+  (DESCRIPTION =
+    (ADDRESS_LIST =
+      (ADDRESS = (PROTOCOL = TCP)(HOST = ${standby_nodes[0]})(PORT = $duplicate_port))
+    )
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = $standby)
+    )
+  )
+
+${primary}_dupl =
+  (DESCRIPTION =
+    (ADDRESS_LIST =
+      (ADDRESS = (PROTOCOL = TCP)(HOST = $hostname)(PORT = $primary_scanPort))
+    )
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = $primary)
+    )
+  )
+-Include in LISTENER.ORA file in ${standby_nodes[0]}, and start the listener.
+
+listener_${standby_inst1} =
+    (DESCRIPTION =
+      (ADDRESS = (PROTOCOL = TCP)(HOST = ${standby_nodes[0]})(PORT = $duplicate_port))
+    )
+sid_list_listener_${standby_inst1}=
+  (SID_LIST =
+    (SID_DESC =
+      (GLOBAL_DBNAME = $standby)
+      (ORACLE_HOME = $ORACLE_HOME)
+      (SID_NAME = $standby_inst1)
+    )
+  )    " >> $FL_TNS
+
+echo " " >> $FL_TNS
+
+######################################################################################
+# Section 02 -- generates script 02
+######################################################################################
+# This section makes needed directories on primary and standby in $FL_MKDIRS
+######################################################################################
+
+  rm -f tmp.txt
+  echo " " >> $FL_MKDIRS
+  echo "--Create parent directories if they dont already exist" >> tmp.txt
+
+  for dmount in ${datafile_mounts[@]}; do
+    echo "mkdir ${dmount}" >> tmp.txt
+  done
+
+  for rmount in ${redolog_mounts[@]}; do
+    echo "mkdir ${rmount}" >> tmp.txt
+  done
+
+  echo "+DATA/control" >> tmp.txt
+  echo "+REDO/control" >> tmp.txt
+  echo "+REDO2/control" >> tmp.txt
+
+  for cmount in ${ctlfile_mounts[@]}; do
+    echo "mkdir ${cmount}" >> tmp.txt
+  done
+
+  echo "+RECO/arch" >> tmp.txt
+  echo "+RECO2/arch2" >> tmp.txt
+
+  echo $arch1|awk -F "=" '{print $2}'|awk '{print "mkdir " $0}'  >> tmp.txt
+  echo $arch2|awk -F "=" '{print $2}'|awk '{print "mkdir " $0}'  >> tmp.txt
+
+  awk '!seen[$0]++' tmp.txt >> $FL_MKDIRS
+  rm -f tmp.txt
+
+  echo " " >> $FL_MKDIRS
+  echo "--Create this directory in both ${standby_nodes[0]} and ${standby_nodes[1]}" >> $FL_MKDIRS
+  echo  $adump|awk '{print "mkdir -p " $0}'  >> $FL_MKDIRS
+
+######################################################################################
+# Section 03 -- generates script 03
+######################################################################################
+# This section creates data guard parameters needed for primary in $FL_DGPRM
+######################################################################################
+
+  echo " " >> $FL_DGPRM
+  echo "alter database force logging;" >> $FL_DGPRM
+  echo "alter system set db_recovery_file_dest_size='${def_db_recovery_file_dest_size}' scope=both;" >> $FL_DGPRM
+  echo "alter system set db_recovery_file_dest='${fra_mount}' scope=both;" >> $FL_DGPRM
+  echo "alter system set standby_file_management=auto;" >> $FL_DGPRM
+  echo "alter system set log_archive_config='DG_CONFIG=(${primary},${standby})' scope=both;" >> $FL_DGPRM
+  echo "alter system set log_archive_dest_3='service=${standby} async valid_for=(online_logfile,primary_role) db_unique_name=${standby}' scope=both;" >> $FL_DGPRM
+  echo "alter system set db_flashback_retention_target = ${def_db_flashback_retention_target} scope=both;" >> $FL_DGPRM
+  echo "alter system set archive_lag_target = 900 scope=both;" >> $FL_DGPRM
+  echo "alter database flashback on;" >> $FL_DGPRM
+  echo "alter database set standby database to maximize availability;" >> $FL_DGPRM
+
+######################################################################################
+# Section 04 -- generates script 04
+######################################################################################
+## This section creates the redo logs in $FL_STBY_RDO
+######################################################################################
+
+  inst_number=`sqlplus_res "select value from v\\$parameter where name='cluster_database_instances'"`
+  redolog_size=`sqlplus_res "select trim(max(bytes)) from v\\$log"`
+
+  echo " " >> $FL_STBY_RDO
+  while [ $inst_number -ge 1 ]; do
+    logCount=`sqlplus_res "select trim(count(group#)+1) from v\\$log where thread#=$inst_number"`
+
+    if [[ -z "$sRedoNum" ]]; then
+      sRedoNum=$((logCount+10))
+    fi
+    while [ $logCount -ge 1 ]; do
+      for mount in "${redolog_mounts[@]}"; do
+        if [ $logCount -ge 1 ]; then
+          echo "alter database add standby logfile thread $inst_number group $sRedoNum '${mount}sredo${inst_number}_${sRedoNum}.log' size $redolog_size;" >> $FL_STBY_RDO
+          sRedoNum=$((sRedoNum+1))
+          logCount=$((logCount-1))
+        fi
+      done
+    done
+  inst_number=$((inst_number-1))
+  done
+
+######################################################################################
+# Section 05 -- generates script 05
+######################################################################################
+# This section creates the duplicate script for you in $FL_DUPL
+######################################################################################
+
+  echo "spool log to '$FL_DUPL.log'">> $FL_DUPL
+  echo "set echo on">> $FL_DUPL
+  echo "connect target ${sys}/${syspwd}@${primary}_dupl;   # Primary">> $FL_DUPL
+  echo "connect auxiliary ${sys}/${syspwd}@${standby}_dupl; # Standby: tnsname used by primary">> $FL_DUPL
+  echo "run {">> $FL_DUPL
+  echo "allocate channel prmy1 type disk;">> $FL_DUPL
+  echo "allocate channel prmy2 type disk;">> $FL_DUPL
+  echo "allocate channel prmy3 type disk;">> $FL_DUPL
+  echo "allocate channel prmy4 type disk;">> $FL_DUPL
+  echo "allocate channel prmy5 type disk;">> $FL_DUPL
+  echo "allocate auxiliary channel stby1 type disk;">> $FL_DUPL
+  echo "duplicate target database for standby from active database">> $FL_DUPL
+  echo "spfile">> $FL_DUPL
+  echo "parameter_value_convert '$primary','$standby'">> $FL_DUPL
+  echo "set 'db_unique_name'='$standby'">> $FL_DUPL
+  echo "set 'service_names'='$standby'">> $FL_DUPL
+  echo "set standby_file_management='AUTO'">> $FL_DUPL
+  echo "set control_files='${ctlfile_mounts[0]}control01.ctl','${ctlfile_mounts[1]}control02.ctl','${ctlfile_mounts[2]}control03.ctl'">> $FL_DUPL
+  echo "set db_recovery_file_dest='$fra_mount'">> $FL_DUPL
+  echo "set db_recovery_file_dest_size='${def_db_recovery_file_dest_size}'">> $FL_DUPL
+  echo "set dg_broker_start='TRUE'">> $FL_DUPL
+  echo "set log_archive_dest_1='$arch1'">> $FL_DUPL
+  echo "set log_archive_dest_2='$arch2'">> $FL_DUPL
+  echo "set log_archive_dest_3='service=$primary VALID_FOR=(ONLINE_LOGFILES,PRIMARY_ROLE) DB_UNIQUE_NAME=$primary'">> $FL_DUPL
+  echo "set audit_file_dest='$adump'">> $FL_DUPL
+  echo "set cluster_database='FALSE'">> $FL_DUPL
+  echo "nofilenamecheck;">> $FL_DUPL
+  echo "}">> $FL_DUPL
+
+
+######################################################################################
+# Section 06 -- generates script 06
+######################################################################################
+# This section creates the standby rac config file in $FL_RAC
+######################################################################################
+
+  echo " " >> $FL_RAC
+  echo "--Execute the following in  ${standby_nodes[0]}--
+
+export ORACLE_SID=$standby_inst1
+export ORACLE_HOME=$ORACLE_HOME
+
+lsnrctl stop listener_${standby_inst1}
+
+sql> create pfile from spfile;
+sql> shutdown immediate;
+
+cd $ORACLE_HOME/dbs/
+
+rm spfile${standby_inst1}.ora
+
+sed -i 's/$primary_inst1/$standby_inst1/g; s/$primary_inst2/$standby_inst2/g; s/cluster_database=FALSE/cluster_database=TRUE/g' init${standby_inst1}.ora
+
+sql> create spfile='+DATA/$shared/spfile${standby}.ora' from pfile;
+
+mv init${standby_inst1}.ora init${standby_inst1}.ora_`date +"%Y%m%d"`
+
+echo spfile='+DATA/$shared/spfile${standby}.ora' > init${standby_inst1}.ora
+
+scp -p init${standby_inst1}.ora ${standby_nodes[1]}:$ORACLE_HOME/dbs/init${standby_inst2}.ora
+
+srvctl add database -d $standby -o $ORACLE_HOME -p '+DATA/$shared/spfile${standby}.ora' -pwfile +DATA/$shared/orapw$standby -role PHYSICAL_STANDBY -startoption mount
+
+srvctl add instance -d $standby -i $standby_inst1 -n ${standby_nodes[0]}
+
+srvctl add instance -d $standby -i $standby_inst2 -n ${standby_nodes[1]}
+
+srvctl start database -d $standby
+
+srvctl add service -db $standby -service ${pdb_serv} -pdb $pdb -preferred $standby_inst1,$standby_inst2 -policy AUTOMATIC -role PRIMARY -notification TRUE -failovertype SELECT -failovermethod BASIC -failoverdelay 10 -failoverretry 150
+
+Copy Password file into ASM location +DATA/$standby/
+ASMCMD > pwcopy --dbuniquename $standby '$ORACLE_HOME/dbs/orapw${standby_inst1}' '+DATA/$shared/orapw$standby' -f    "  >> $FL_RAC
+
+######################################################################################
+# Section 07 -- generates script 07
+######################################################################################
+# This section creates the script to check apply in $FL_APPLY
+######################################################################################
+
+ echo " " >> $FL_APPLY
+echo "--on standby
+alter database recover managed standby database using current logfile disconnect;
+
+--on primary
+alter system switch logfile;
+
+--on standby
+select process, sequence#, status, thread# from v\$managed_standby;
+alter database recover managed standby database cancel;
+alter database flashback on;
+alter system set db_flashback_retention_target = ${def_db_flashback_retention_target} scope=both;
+alter database recover managed standby database using current logfile disconnect;
+select process, sequence#, status, thread# from v\$managed_standby;
+
+-- on both primary and standby
+alter system set dg_broker_start=false;
+alter system set dg_broker_config_file1='+DATA/$shared/dr1${shared}.dat' scope=both;
+alter system set dg_broker_config_file2='+REDO/$shared/dr2${shared}.dat' scope=both;
+alter system set dg_broker_start=true scope=both;
+-- clearing log_archive_dest_3 on pri/stby because it is conflicting with setup of dg brkr config
+alter system set log_archive_dest_3='' scope=both; " >> $FL_APPLY
+
+######################################################################################
+# Section 08 -- generates script 08
+######################################################################################
+# This section creates the broker script for you in $FL_BRKR
+######################################################################################
+
+  echo " ">> $FL_BRKR
+  echo "create configuration '${shared}_DG' as primary database is $primary connect identifier is $primary;
+add database $standby as connect identifier is $standby maintained as physical;
+edit database $primary set property LogXptMode='ASYNC';
+edit database $standby set property LogXptMode='ASYNC';
+edit database $primary set property NetTimeout='${def_net_timeout}';
+edit database $standby set property NetTimeout='${def_net_timeout}';
+edit configuration set property FastStartFailoverThreshold='${def_net_timeout}';
+edit configuration set property OperationTimeout='${def_operation_timeout}';
+edit configuration set protection mode as MaxPerformance;
+enable configuration;
+show configuration; " >> $FL_BRKR
+
+#################
+echo "Finished generating scripts."
+echo "The scripts you will execute are in `pwd`"
+echo ""
+
+
+--------------------------------------------------------------------------------------------------------------
+dgparms_test.lst
+------------------------------------------------
+
+ef_db_flashback_retention_target=180
+def_net_timeout=60
+def_operation_timeout=60
+def_db_recovery_file_dest_size=10G
+
+dgparms_prod.lst
+
+ef_db_flashback_retention_target=1440
+def_net_timeout=30
+def_operation_timeout=30
+def_db_recovery_file_dest_size=20G
+
+================================================================================================================================
+asm_diskmap
+===================================================
+
+SET LINESIZE  160
+SET PAGESIZE  9999
+SET VERIFY    off
+
+COLUMN disk_group_name        FORMAT a20           HEAD 'Disk Group Name'
+COLUMN disk_file_path         FORMAT a17           HEAD 'Path'
+COLUMN disk_file_name         FORMAT a20           HEAD 'File Name'
+COLUMN disk_file_fail_group   FORMAT a20           HEAD 'Fail Group'
+COLUMN total_mb               FORMAT 999,999,999   HEAD 'File Size (MB)'
+COLUMN used_mb                FORMAT 999,999,999   HEAD 'Used Size (MB)'
+COLUMN pct_used               FORMAT 999.99        HEAD 'Pct. Used'
+
+break on report on disk_group_name skip 1
+
+compute sum label ""              of total_mb used_mb on disk_group_name
+compute sum label "Grand Total: " of total_mb used_mb on report
+
+SELECT
+    NVL(a.name, '[CANDIDATE]')                       disk_group_name
+  , b.path                                           disk_file_path
+  , b.name                                           disk_file_name
+  , b.failgroup                                      disk_file_fail_group
+  , b.total_mb                                       total_mb
+  , (b.total_mb - b.free_mb)                         used_mb
+--  , ROUND((1- (b.free_mb / b.total_mb))*100, 2)      pct_used
+FROM
+    v$asm_diskgroup a RIGHT OUTER JOIN v$asm_disk b USING (group_number)
+ORDER BY
+    a.name;
+
+
+==============================================================================================================================
+asm_diskgroup_verify.sql
+=========================================================================
+set lines 180
+select group_number, NAME, TOTAL_MB/1024 TOTAL_GB, round(FREE_MB/1024,2) FREE_GB, round(USABLE_FILE_MB/1024,2) ACTL_FREE, state from v$asm_diskgroup order by group_number,name
+/
+====================================
+rac_session
+=====================================
+
+set linesize 105
+column username format a30 heading "Username"
+column sid format 9999 heading "SID"
+column serial# format 999999  heading "SER #"
+column inst_id format 9 heading "I"
+column "Date Logged On" format a16
+column idle format a11 justify c head "Time|DD:HH:MM:SS"
+rem column spid format 9999990 justify c heading 'Unix|PID'
+column spid format a7 justify c heading 'Unix|PID'
+column program format a15 heading 'Program'
+column status format a1 heading 'S|T'
+clear breaks
+
+select substr(v.username||' -'||machine,1,30) username, v.sid, v.serial#, v.inst_id,
+       to_char(v.logon_time,'mm/dd/yy hh:miam') "Date Logged On",
+       lpad(to_char(trunc(v.last_call_et/86400)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(last_call_et,86400)/3600)),2,'0')|| ':'||
+       lpad(to_char(trunc(mod(mod(last_call_et,86400),3600)/60)),2,'0')||':'||
+       lpad(to_char(trunc(mod(mod(mod(last_call_et,86400),3600),60))),2,'0') idle,
+       substr(v.program,1,15) program,
+       lpad(p.spid,7) spid,
+       substr(v.status,1,1) status
+from gv$session v, gv$process p
+where v.paddr = p.addr(+)
+and v.inst_id = p.inst_id(+)
+and v.username is not null
+--and (v.inst_id,v.audsid) <> (select instance_number, userenv('SESSIONID')
+--                                     from v$instance)
+and v.audsid <> userenv('SESSIONID')
+and (v.program not like 'racgimon%' or v.program is null)
+order by sid, last_call_et desc
+/
+
+rem column status clear
+
+
+
+
+
+
+
+
+
+
+
